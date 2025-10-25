@@ -1,0 +1,209 @@
+name: Recon+Costing Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Add reconciliation + costing code
+        shell: bash
+        run: |
+          set -e
+          # reconciliation
+          cat > energy_broker_uk/models/reconciliation.py <<'PY'
+          from odoo import models, fields
+
+          class SupplierReconciliationLine(models.Model):
+              _name = 'supplier.reconciliation.line'
+              _description = 'Supplier Commission Reconciliation Line'
+
+              contract_id = fields.Many2one('customer.contract', required=True, ondelete='cascade')
+              date = fields.Date(default=fields.Date.context_today)
+              com_amount = fields.Float(string='Supplier Commission Amount')
+              note = fields.Char()
+
+          class BrokerReconciliationLine(models.Model):
+              _name = 'broker.reconciliation.line'
+              _description = 'Broker Commission Reconciliation Line'
+
+              contract_id = fields.Many2one('customer.contract', required=True, ondelete='cascade')
+              date = fields.Date(default=fields.Date.context_today)
+              comm_amount = fields.Float(string='Broker Commission Amount')
+              note = fields.Char()
+          PY
+
+          # ensure import order
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('energy_broker_uk/models/__init__.py')
+          lines = p.read_text().splitlines()
+          lines = [ln for ln in lines if ln.strip() != 'from . import reconciliation']
+          try:
+              idx = next(i for i, ln in enumerate(lines) if ln.strip() == 'from . import contract_ext')
+          except StopIteration:
+              idx = None
+          if idx is None:
+              lines.append('from . import reconciliation')
+          else:
+              lines.insert(idx, 'from . import reconciliation')
+          p.write_text('\n'.join(lines) + '\n')
+          PY
+
+          # costing scaffold
+          cat > energy_broker_uk/models/costing.py <<'PY'
+          from odoo import models, fields
+
+          class EnergyHHCost(models.Model):
+              _name = 'energy.hh.cost'
+              _description = 'Monthly Energy Cost Summary'
+
+              name = fields.Char(required=True)
+              partner_id = fields.Many2one('res.partner', string='Customer')
+              supplier_id = fields.Many2one('res.partner', domain=[('supplier_rank','>', 0)], string='Supplier')
+              meter_product_id = fields.Many2one('product.product', string='Meter')
+              date_start = fields.Date(required=True)
+              date_end = fields.Date(required=True)
+
+              total_kwh = fields.Float()
+              total_kvarh = fields.Float()
+              unit_cost_gbp = fields.Float()
+              standing_cost_gbp = fields.Float()
+              capacity_cost_gbp = fields.Float()
+              reactive_cost_gbp = fields.Float()
+              total_cost_gbp = fields.Float()
+
+              state = fields.Selection([
+                  ('draft', 'Draft'),
+                  ('computed', 'Computed'),
+                  ('confirmed', 'Confirmed'),
+              ], default='draft')
+
+              def action_compute(self):
+                  # Placeholder; will be replaced with full HH/tariff compute
+                  for rec in self:
+                      rec.total_kwh = 0.0
+                      rec.total_kvarh = 0.0
+                      rec.unit_cost_gbp = 0.0
+                      rec.standing_cost_gbp = 0.0
+                      rec.capacity_cost_gbp = 0.0
+                      rec.reactive_cost_gbp = 0.0
+                      rec.total_cost_gbp = 0.0
+                      rec.state = 'computed'
+          PY
+
+          # ensure costing import
+          grep -q '^from \. import costing$' energy_broker_uk/models/__init__.py || echo 'from . import costing' >> energy_broker_uk/models/__init__.py
+
+          # views
+          cat > energy_broker_uk/views/costing_views.xml <<'XML'
+          <odoo>
+            <data>
+
+              <record id="view_energy_hh_cost_tree" model="ir.ui.view">
+                <field name="name">energy.hh.cost.tree</field>
+                <field name="model">energy.hh.cost</field>
+                <field name="arch" type="xml">
+                  <tree>
+                    <field name="name"/>
+                    <field name="partner_id"/>
+                    <field name="supplier_id"/>
+                    <field name="date_start"/>
+                    <field name="date_end"/>
+                    <field name="total_kwh"/>
+                    <field name="total_cost_gbp"/>
+                    <field name="state"/>
+                  </tree>
+                </field>
+              </record>
+
+              <record id="view_energy_hh_cost_form" model="ir.ui.view">
+                <field name="name">energy.hh.cost.form</field>
+                <field name="model">energy.hh.cost</field>
+                <field name="arch" type="xml">
+                  <form string="Monthly Energy Cost">
+                    <sheet>
+                      <group>
+                        <field name="name"/>
+                        <field name="partner_id"/>
+                        <field name="supplier_id"/>
+                        <field name="meter_product_id"/>
+                        <field name="date_start"/>
+                        <field name="date_end"/>
+                        <field name="state"/>
+                      </group>
+                      <group string="Totals">
+                        <field name="total_kwh"/>
+                        <field name="total_kvarh"/>
+                        <field name="unit_cost_gbp"/>
+                        <field name="standing_cost_gbp"/>
+                        <field name="capacity_cost_gbp"/>
+                        <field name="reactive_cost_gbp"/>
+                        <field name="total_cost_gbp"/>
+                      </group>
+                      <footer>
+                        <button name="action_compute" type="object" string="Compute" class="btn-primary"/>
+                      </footer>
+                    </sheet>
+                  </form>
+                </field>
+              </record>
+
+              <record id="action_energy_hh_cost" model="ir.actions.act_window">
+                <field name="name">Monthly Costs</field>
+                <field name="res_model">energy.hh.cost</field>
+                <field name="view_mode">list,form</field>
+              </record>
+
+              <menuitem id="menu_energy_root" name="Energy" sequence="10"/>
+              <menuitem id="menu_energy_monthly_costs" name="Monthly Costs"
+                        parent="menu_energy_root" action="action_energy_hh_cost" sequence="30"/>
+
+            </data>
+          </odoo>
+          XML
+
+          # manifest include view
+          python3 - <<'PY'
+          import ast, pathlib
+          p = pathlib.Path('energy_broker_uk/__manifest__.py')
+          man = ast.literal_eval(p.read_text())
+          data = man.get('data', [])
+          x = 'views/costing_views.xml'
+          if x not in data:
+              data.append(x)
+          man['data'] = data
+          p.write_text(str(man))
+          PY
+
+          # ACL
+          AC=energy_broker_uk/security/ir.model.access.csv
+          grep -q '^access_energy_hh_cost,' "$AC" || echo 'access_energy_hh_cost,energy.hh.cost,model_energy_hh_cost,base.group_system,1,1,1,1' >> "$AC"
+
+          # commit
+          git config user.name "CI Runner"
+          git config user.email "ci@runner"
+          git add energy_broker_uk/models/reconciliation.py energy_broker_uk/models/costing.py energy_broker_uk/models/__init__.py energy_broker_uk/views/costing_views.xml energy_broker_uk/__manifest__.py energy_broker_uk/security/ir.model.access.csv
+          git commit -m "feat: reconciliation models + costing scaffold (model, views, manifest, ACL)" || echo "nothing to commit"
+
+      - name: Push changes
+        run: git push
+
+      - name: Deploy to Odoo
+        run: |
+          set -e
+          git -C /opt/custom-addons/energy_broker_uk pull
+          sudo systemctl restart odoo19.service || systemctl restart odoo19.service
+          sleep 3
+          tail -n 200 /opt/odoo19/log/logfile.txt || true
