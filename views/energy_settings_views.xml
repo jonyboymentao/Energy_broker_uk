@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_energy_broker_settings_form2" model="ir.ui.view">
+    <field name="name">res.config.settings.form.energy.broker2</field>
+    <field name="model">res.config.settings</field>
+    <field name="priority" eval="10000"/>
+    <field name="arch" type="xml">
+      <form string="Energy Settings">
+        <sheet>
+          <group string="Energy System Configuration">
+            <group>
+              <field name="uplift_default_p_per_kwh"/>
+              <field name="max_uplift_p_per_kwh"/>
+              <field name="comparison_disclaimer"/>
+              <field name="tender_default_suppliers_ids" widget="many2many_tags"/>
+            </group>
+            <group>
+              <field name="energy_monitoring_api_url"/>
+              <field name="energy_monitoring_api_key" password="True"/>
+              <field name="loa_sign_template_id"/>
+              <field name="contract_sign_template_id"/>
+            </group>
+          </group>
+          <group string="Suppliers">
+            <group string="Jellyfish">
+              <field name="jellyfish_api_base_url" placeholder="https://api.jellyfish..."/>
+              <field name="jellyfish_api_key" password="True"/>
+            </group>
+          </group>
+        </sheet>
+        <footer>
+          <button string="Cancel" class="btn-secondary" special="cancel"/>
+          <button string="Save" type="object" name="execute" class="btn-primary"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_energy_settings_wizard" model="ir.actions.act_window">
+    <field name="name">Energy Settings</field>
+    <field name="res_model">res.config.settings</field>
+    <field name="view_mode">form</field>
+    <field name="view_id" ref="view_energy_broker_settings_form2"/>
+    <field name="target">new</field>
+  </record>
+</odoo>

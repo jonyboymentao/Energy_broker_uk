@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <!-- Actions first to avoid forward-reference issues during module load -->
+  <record id="action_energy_meters" model="ir.actions.act_window">
+    <field name="name">Meters</field>
+    <field name="res_model">product.template</field>
+    <field name="domain">[("is_energy_meter","=",True)]</field>
+    <field name="context">{"search_default_is_energy_meter": 1, "default_is_energy_meter": 1, "default_type": "service"}</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="action_energy_suppliers" model="ir.actions.act_window">
+    <field name="name">Energy Suppliers</field>
+    <field name="res_model">res.partner</field>
+    <field name="domain">[("is_energy_supplier","=",True)]</field>
+    <field name="context">{"search_default_is_energy_supplier": 1}</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <menuitem id="menu_energy_broker_root" name="Energy Brokerage" sequence="10"/>
+
+  <menuitem id="menu_energy_broker_requests" name="Price Requests" parent="menu_energy_broker_root" action="action_supplier_price_request" sequence="20"/>
+  <menuitem id="menu_energy_broker_responses" name="Supplier Responses" parent="menu_energy_broker_root" action="action_supplier_price_response" sequence="30"/>
+  <menuitem id="menu_energy_broker_contracts" name="Contracts" parent="menu_energy_broker_root" action="action_customer_contract" sequence="40"/>
+  <menuitem id="menu_energy_broker_sites" name="Sites" parent="menu_energy_broker_root" action="action_customer_site" sequence="50"/>
+  <menuitem id="menu_energy_broker_meters" name="Meters" parent="menu_energy_broker_root" action="action_energy_meters" sequence="55"/>
+  <menuitem id="menu_energy_broker_suppliers" name="Energy Suppliers" parent="menu_energy_broker_root" action="action_energy_suppliers" sequence="60"/>
+  <menuitem id="menu_energy_broker_settings" name="Energy Settings" parent="menu_energy_broker_root" action="action_energy_settings_wizard" sequence="70"/>
+</odoo>

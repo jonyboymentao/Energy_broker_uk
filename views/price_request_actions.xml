@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="action_fetch_jellyfish_prices" model="ir.actions.server">
+    <field name="name">Fetch Jellyfish Prices</field>
+    <field name="state">code</field>
+    <field name="model_id" ref="model_supplier_price_request"/>
+    <field name="binding_model_id" ref="model_supplier_price_request"/>
+    <field name="binding_view_types">form</field>
+    <field name="code"><![CDATA[
+records = env['supplier.price.request'].browse(env.context.get('active_ids', []))
+records.action_fetch_jellyfish_prices()
+    ]]></field>
+  </record>
+
+  <record id="action_map_jellyfish_offers" model="ir.actions.server">
+    <field name="name">Map Jellyfish Offers</field>
+    <field name="state">code</field>
+    <field name="model_id" ref="model_supplier_price_request"/>
+    <field name="binding_model_id" ref="model_supplier_price_request"/>
+    <field name="binding_view_types">form</field>
+    <field name="code"><![CDATA[
+records = env['supplier.price.request'].browse(env.context.get('active_ids', []))
+records.action_map_jellyfish_offers()
+    ]]></field>
+  </record>
+
+  <record id="action_send_customer_quote" model="ir.actions.server">
+    <field name="name">Send Pricing Quotation to Customer</field>
+    <field name="state">code</field>
+    <field name="model_id" ref="model_supplier_price_request"/>
+    <field name="binding_model_id" ref="model_supplier_price_request"/>
+    <field name="binding_view_types">form</field>
+    <field name="code"><![CDATA[
+records = env['supplier.price.request'].browse(env.context.get('active_ids', []))
+records.action_send_customer_quote()
+    ]]></field>
+  </record>
+</odoo>

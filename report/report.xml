@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <data>
+    <record id="action_supplier_price_request_report" model="ir.actions.report">
+      <field name="name">Supplier Price Comparison</field>
+      <field name="model">supplier.price.request</field>
+      <field name="report_type">qweb-pdf</field>
+      <field name="report_name">energy_broker_uk.report_supplier_price_request</field>
+      <field name="report_file">energy_broker_uk.report_supplier_price_request</field>
+      <field name="print_report_name">(object.name or 'Price Request') + ' - Comparison'</field>
+    </record>
+  </data>
+</odoo>

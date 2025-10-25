@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <!-- Dedicated Meters list and form for product.template -->
+  <record id="view_meter_product_tree" model="ir.ui.view">
+    <field name="name">meter.product.template.tree</field>
+    <field name="model">product.template</field>
+    <field name="arch" type="xml">
+      <list string="Meters">
+        <field name="name"/>
+        <field name="is_energy_meter"/>
+        <field name="meter_type"/>
+        <field name="mpan_mprn"/>
+        <field name="mpan_core"/>
+        <field name="mprn"/>
+        <field name="default_annual_usage_kwh"/>
+        <field name="aq_kwh"/>
+        <field name="current_supplier_id"/>
+        <field name="contract_end_date"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_meter_product_form" model="ir.ui.view">
+    <field name="name">meter.product.template.form</field>
+    <field name="model">product.template</field>
+    <field name="arch" type="xml">
+      <form string="Meter">
+        <sheet>
+          <group string="Energy Meter">
+            <group>
+              <field name="name"/>
+              <field name="is_energy_meter"/>
+              <field name="meter_type"/>
+            </group>
+          </group>
+          <group string="Identifiers">
+            <field name="mpan_mprn"/>
+            <field name="mpan_core"/>
+            <field name="mprn"/>
+          </group>
+          <group string="Electricity">
+            <field name="profile_class"/>
+            <field name="mtc"/>
+            <field name="llfc"/>
+            <field name="kva"/>
+            <field name="read_type"/>
+            <field name="gsp"/>
+          </group>
+          <group string="Gas">
+            <field name="aq_kwh"/>
+            <field name="meter_pressure"/>
+          </group>
+          <group string="Site">
+            <field name="site_name"/>
+            <field name="supply_address"/>
+            <field name="postcode"/>
+            <field name="current_supplier_id"/>
+            <field name="contract_end_date"/>
+            <field name="default_annual_usage_kwh"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+</odoo>

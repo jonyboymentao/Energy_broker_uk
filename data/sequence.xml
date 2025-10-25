@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <data noupdate="1">
+    <record id="seq_customer_loa" model="ir.sequence">
+      <field name="name">Customer LOA</field>
+      <field name="code">customer.loa</field>
+      <field name="prefix">LOA/</field>
+      <field name="padding">4</field>
+    </record>
+    <record id="seq_supplier_price_request" model="ir.sequence">
+      <field name="name">Supplier Price Request</field>
+      <field name="code">supplier.price.request</field>
+      <field name="prefix">PR/</field>
+      <field name="padding">4</field>
+    </record>
+    <record id="seq_supplier_price_response" model="ir.sequence">
+      <field name="name">Supplier Price Response</field>
+      <field name="code">supplier.price.response</field>
+      <field name="prefix">RESP/</field>
+      <field name="padding">4</field>
+    </record>
+    <record id="seq_customer_contract" model="ir.sequence">
+      <field name="name">Customer Contract</field>
+      <field name="code">customer.contract</field>
+      <field name="prefix">CON/</field>
+      <field name="padding">4</field>
+    </record>
+  </data>
+</odoo>

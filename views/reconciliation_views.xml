@@ -1,0 +1,64 @@
+<odoo>
+  <data>
+    <record id="view_supplier_reconcile_tree" model="ir.ui.view">
+      <field name="name">supplier.reconciliation.line.tree</field>
+      <field name="model">supplier.reconciliation.line</field>
+      <field name="arch" type="xml">
+        <tree>
+          <field name="date"/>
+          <field name="com_amount"/>
+          <field name="note"/>
+        </tree>
+      </field>
+    </record>
+
+    <record id="view_broker_reconcile_tree" model="ir.ui.view">
+      <field name="name">broker.reconciliation.line.tree</field>
+      <field name="model">broker.reconciliation.line</field>
+      <field name="arch" type="xml">
+        <tree>
+          <field name="date"/>
+          <field name="comm_amount"/>
+          <field name="note"/>
+        </tree>
+      </field>
+    </record>
+
+    <record id="action_open_supplier_reconcile" model="iractions.act_window">
+      <field name="name">Supplier Reconciliations</field>
+      <field name="res_model">supplier.reconciliation.line</field>
+      <field name="view_mode">list,form</field>
+      <field name="context">{'default_contract_id': active_id}</field>
+      <field name="domain">[('contract_id','=', active_id)]</field>
+    </record>
+
+    <record id="action_open_broker_reconcile" model="iractions.act_window">
+      <field name="name">Broker Reconciliations</field>
+      <field name="res_model">broker.reconciliation.line</field>
+      <field name="view_mode">list,form</field>
+      <field name="context">{'default_contract_id': active_id}</field>
+      <field name="domain">[('contract_id','=', active_id)]</field>
+    </record>
+
+    <record id="view_customer_contract_form_ext_buttons" model="customer.contract">
+      <field name="name">customer.contract.form.ext.reconcile.buttons</field>
+      <field name="inherit_id" ref="energy_broker_uk.view_customer_contract_form"/>
+      <field name="arch" type="xml">
+        <xpath expr="//header" position="inside">
+          <button type="action" name="%(action_open_supplier_reconcile)d" string="Supplier Reconcile" class="btn-secondary"/>
+          <button type="action" name="%(action_open_broker_reconcile)d" string="Broker Reconcile" class="btn-secondary"/>
+        </xpath>
+        <xpath expr="//sheet" position="inside">
+          <notebook position="inside">
+            <page string="Reconciliations">
+              <group>
+                <field name="supplier_reconcile_ids" context="{'default_contract_id': active_id}"/>
+                <field name="broker_reconcille_ids" context="{'default_contract_id': active_id}"/>
+              </group>
+            </page>
+          </notebook>
+        </xpath>
+      </field>
+    </record>
+  </data>
+</odoo>

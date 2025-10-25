@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <!-- Extend Product Template form to show Energy Meter fields -->
+  <record id="view_product_template_form_energy_meter" model="ir.ui.view">
+    <field name="name">product.template.form.energy.meter</field>
+    <field name="model">product.template</field>
+    <field name="inherit_id" ref="product.product_template_form_view"/>
+    <field name="arch" type="xml">
+      <xpath expr="//notebook" position="inside">
+        <page string="Energy Meter" name="energy_meter_page">
+          <group/>
+        </page>
+      </xpath>
+    </field>
+  </record>
+</odoo>

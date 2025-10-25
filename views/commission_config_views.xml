@@ -1,0 +1,43 @@
+<odoo>
+  <data>
+    <record id="view_energy_commission_rule_tree" model="ir.ui.view">
+      <field name="name">energy.commission.rule.tree</field>
+      <field name="model">energy.commission.rule</field>
+      <field name="arch" type="xml">
+        <tree>
+          <field name="name"/>
+          <field name="supplier_id"/>
+          <field name="year_duration"/>
+          <field name="supplier_percent"/>
+          <field name="broker_split_percent"/>
+          <field name="upfront_percent"/>
+        </tree>
+      </field>
+    </record>
+    <record id="view_energy_commission_rule_form" model="ir.ui.view">
+      <field name="name">energy.commission.rule.form</field>
+      <field name="model">energy.commission.rule</field>
+      <field name="arch" type="xml">
+        <form string="Commission Rule">
+          <sheet>
+            <group>
+              <field name="name"/>
+              <field name="supplier_id"/>
+              <field name="year_duration"/>
+            </group>
+            <group string="Percentages">
+              <field name="supplier_percent"/>
+              <field name="broker_split_percent"/>
+              <field name="upfront_percent"/>
+            </group>
+          </sheet>
+        </form>
+      </field>
+    </record>
+    <record id="action_energy_commission_rule" model="iractions.act_window">
+      <field name="name">Commission Rules</field>
+      <field name="res_model">energy.commission.rule</field>
+      <field name="view_mode">list,form</field>
+    </record>
+  </data>
+</odoo>

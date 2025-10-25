@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="action_refresh_signature_status_loa" model="ir.actions.server">
+    <field name="name">Refresh Signature Status</field>
+    <field name="state">code</field>
+    <field name="model_id" ref="model_customer_loa"/>
+    <field name="binding_model_id" ref="model_customer_loa"/>
+    <field name="binding_view_types">form</field>
+    <field name="code"><![CDATA[
+records = env['customer.loa'].browse(env.context.get('active_ids', []))
+records.action_refresh_signature_status()
+    ]]></field>
+  </record>
+</odoo>

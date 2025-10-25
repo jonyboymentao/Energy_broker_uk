@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_energy_broker_settings" model="ir.ui.view">
+    <field name="name">res.config.settings.view.form.energy.broker</field>
+    <field name="model">res.config.settings</field>
+    <field name="inherit_id" ref="base.view_res_config_settings"/>
+    <field name="arch" type="xml">
+      <xpath expr="//div[@id='settings']" position="inside">
+        <div class="app_settings_block" data-string="Energy Settings" string="Energy Settings">
+          <h2>Energy Settings</h2>
+          <div class="row mt16 o_settings_container">
+            <div class="col-12 col-lg-6 o_setting_box">
+              <div class="o_setting_left_pane">
+                <field name="default_uplift_p_per_kwh"/>
+                <field name="max_uplift_p_per_kwh"/>
+                <field name="comparison_disclaimer"/>
+                <field name="tender_default_suppliers_ids" widget="many2many_tags"/>
+              </div>
+            </div>
+            <div class="col-12 col-lg-6 o_setting_box">
+              <div class="o_setting_left_pane">
+                <field name="energy_monitoring_api_url"/>
+                <field name="energy_monitoring_api_key" password="True"/>
+                <field name="loa_sign_template_id"/>
+                <field name="contract_sign_template_id"/>
+              </div>
+            </div>
+          </div>
+        </div>
+      </xpath>
+    </field>
+  </record>
+
+  <record id="action_energy_settings" model="ir.actions.act_window">
+    <field name="name">Energy Settings</field>
+    <field name="res_model">res.config.settings</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+    <field name="context">{"default_group_no_one": False}</field>
+  </record>
+</odoo>

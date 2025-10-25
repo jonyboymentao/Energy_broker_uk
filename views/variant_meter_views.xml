@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <!-- Extend Product Variant form to show Energy Meter fields -->
+  <record id="view_product_variant_form_energy_meter" model="ir.ui.view">
+    <field name="name">product.product.form.energy.meter</field>
+    <field name="model">product.product</field>
+    <field name="inherit_id" ref="product.product_product_view_form_normalized"/>
+    <field name="arch" type="xml">
+      <xpath expr="//sheet" position="inside">
+        <group string="Energy Meter">
+          <group>
+            <field name="is_energy_meter"/>
+            <field name="meter_type"/>
+          </group>
+          <group string="Identifiers">
+            <field name="mpan_mprn"/>
+            <field name="mpan_core"/>
+            <field name="mprn"/>
+          </group>
+          <group string="Electricity">
+            <field name="profile_class"/>
+            <field name="mtc"/>
+            <field name="llfc"/>
+            <field name="kva"/>
+            <field name="read_type"/>
+            <field name="gsp"/>
+          </group>
+          <group string="Gas">
+            <field name="aq_kwh"/>
+            <field name="meter_pressure"/>
+          </group>
+          <group string="Site">
+            <field name="site_name"/>
+            <field name="supply_address"/>
+            <field name="postcode"/>
+            <field name="current_supplier_id"/>
+            <field name="contract_end_date"/>
+            <field name="default_annual_usage_kwh"/>
+          </group>
+        </group>
+      </xpath>
+    </field>
+  </record>
+</odoo>

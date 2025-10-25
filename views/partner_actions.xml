@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <!-- Server actions on res.partner to mark/unmark as Energy Supplier -->
+  <record id="action_mark_energy_supplier_server" model="ir.actions.server">
+    <field name="name">Mark as Energy Supplier</field>
+    <field name="model_id" ref="base.model_res_partner"/>
+    <field name="binding_model_id" ref="base.model_res_partner"/>
+    <field name="binding_type">action</field>
+    <field name="state">code</field>
+    <field name="code">action = records.action_mark_energy_supplier()</field>
+  </record>
+
+  <record id="action_unmark_energy_supplier_server" model="ir.actions.server">
+    <field name="name">Unmark Energy Supplier</field>
+    <field name="model_id" ref="base.model_res_partner"/>
+    <field name="binding_model_id" ref="base.model_res_partner"/>
+    <field name="binding_type">action</field>
+    <field name="state">code</field>
+    <field name="code">action = records.action_unmark_energy_supplier()</field>
+  </record>
+</odoo>

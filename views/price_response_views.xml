@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_supplier_price_response_tree" model="ir.ui.view">
+    <field name="name">supplier.price.response.list</field>
+    <field name="model">supplier.price.response</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="name"/>
+        <field name="request_id"/>
+        <field name="partner_id"/>
+        <field name="total_annual_cost"/>
+        <field name="is_best_offer"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_supplier_price_response_form" model="ir.ui.view">
+    <field name="name">supplier.price.response.form</field>
+    <field name="model">supplier.price.response</field>
+    <field name="arch" type="xml">
+      <form string="Supplier Price Response">
+        <sheet>
+          <group>
+            <group>
+              <field name="name" readonly="1"/>
+              <field name="request_id"/>
+              <field name="partner_id"/>
+            </group>
+            <group>
+              <field name="total_annual_cost" readonly="1"/>
+              <field name="is_best_offer"/>
+              <field name="attachment_ids" widget="many2many_binary"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Lines">
+              <field name="line_ids" nolabel="1">
+                <list editable="bottom">
+                  <field name="request_line_id"/>
+                  <field name="unit_rate_p_per_kwh"/>
+                  <field name="standing_charge_gbp_per_day"/>
+                  <field name="contract_term_years"/>
+                  <field name="kva_price"/>
+                  <field name="annual_usage_kwh" readonly="1"/>
+                  <field name="annual_cost" readonly="1"/>
+                </list>
+              </field>
+            </page>
+            <page string="Notes">
+              <field name="notes" nolabel="1"/>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_supplier_price_response" model="ir.actions.act_window">
+    <field name="name">Supplier Responses</field>
+    <field name="res_model">supplier.price.response</field>
+    <field name="view_mode">list,form</field>
+  </record>
+</odoo>

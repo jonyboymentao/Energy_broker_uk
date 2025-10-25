@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_partner_form_energy_supplier" model="ir.ui.view">
+    <field name="name">res.partner.form.energy.supplier</field>
+    <field name="model">res.partner</field>
+    <field name="inherit_id" ref="base.view_partner_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//notebook" position="inside">
+        <page string="Energy Brokerage">
+          <group>
+            <group>
+              <field name="is_energy_supplier"/>
+              <field name="tender_email"/>
+              <field name="default_uplift_p_per_kwh"/>
+              <field name="is_commission_customer"/>
+            </group>
+            <group>
+              <button name="action_mark_energy_supplier" type="object" string="Mark as Energy Supplier" attrs="{'invisible': [('is_energy_supplier','=',True)]}" class="btn-secondary"/>
+              <button name="action_unmark_energy_supplier" type="object" string="Unmark Energy Supplier" attrs="{'invisible': [('is_energy_supplier','=',False)]}"/>
+            </group>
+          </group>
+        </page>
+      </xpath>
+    </field>
+  </record>
+</odoo>

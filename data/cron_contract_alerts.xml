@@ -1,0 +1,13 @@
+<odoo>
+  <data noupdate="1">
+    <record id="ir_cron_contract_alerts_update" model="ir.cron">
+      <field name="name">Contract Alerts Update</field>
+      <field name="model_id" ref="model_customer_contract"/>
+      <field name="state">code</field>
+      <field name="code">model.cron_contract_alerts()</field>
+      <field name="interval_number">1</field>
+      <field name="interval_type">days</field>
+      <field name="active">True</field>
+    </record>
+  </data>
+</odoo>

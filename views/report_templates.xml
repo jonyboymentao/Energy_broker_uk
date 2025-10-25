@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <template id="report_supplier_price_request">
+    <t t-call="web.external_layout">
+      <t t-set="docs" t-value="docs"/>
+      <div class="page">
+        <style type="text/css">
+          .ebr-cover{background:#1a365d;color:#fff;padding:24px 24px 12px 24px;border-radius:6px;margin-bottom:16px}
+          .ebr-title{font-size:22px;font-weight:700;margin:0 0 6px 0;color:#fff}
+          .ebr-sub{font-size:14px;opacity:.9;color:#d5f4e6}
+          .ebr-card{background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin:10px 0}
+          .ebr-grid{display:flex;gap:12px}
+          .ebr-grid>div{flex:1}
+          .ebr-h2{font-size:16px;color:#1a365d;border-bottom:2px solid #27ae60;padding-bottom:6px;margin-bottom:10px}
+          .ebr-table{width:100%;border-collapse:collapse}
+          .ebr-table th{background:#f8f9fa;text-align:left;padding:8px;border-bottom:1px solid #e2e8f0;font-weight:600;color:#4a5568}
+          .ebr-table td{padding:8px;border-bottom:1px solid #e2e8f0}
+          .ebr-kpi{background:#e8f4fc;border-left:4px solid #1a365d;padding:10px;border-radius:6px;margin:10px 0}
+          .ebr-badge{display:inline-block;background:#d5f4e6;color:#2d5a27;padding:2px 8px;border-radius:12px;font-size:12px}
+          .ebr-foot{margin-top:16px;color:#4a5568;font-size:12px}
+          .best{background:#d5f4e6}
+        </style>
+
+        <t t-foreach="docs" t-as="o">
+          <div class="ebr-cover">
+            <div class="ebr-title">Business Energy Comparison Report</div>
+            <div class="ebr-sub">Price Request <t t-esc="o.name"/> – <t t-esc="o.partner_id.name"/></div>
+          </div>
+
+          <div class="ebr-grid">
+            <div class="ebr-card">
+              <div class="ebr-h2">Client</div>
+              <div><strong>Name:</strong> <t t-esc="o.partner_id.name"/></div>
+              <div t-if="o.partner_id.vat"><strong>VAT:</strong> <t t-esc="o.partner_id.vat"/></div>
+              <div t-if="o.partner_id.phone"><strong>Phone:</strong> <t t-esc="o.partner_id.phone"/></div>
+              <div t-if="o.partner_id.email"><strong>Email:</strong> <t t-esc="o.partner_id.email"/></div>
+            </div>
+            <div class="ebr-card">
+              <div class="ebr-h2">LOA</div>
+              <div><strong>Reference:</strong> <t t-esc="o.loa_id.name"/></div>
+              <div><strong>Status:</strong> <t t-esc="o.loa_id.status"/></div>
+              <div><strong>Issue:</strong> <t t-esc="o.loa_id.issue_date"/></div>
+              <div><strong>Expiry:</strong> <t t-esc="o.loa_id.expiry_date"/></div>
+            </div>
+          </div>
+
+          <div class="ebr-card">
+            <div class="ebr-h2">Meters</div>
+            <table class="ebr-table">
+              <thead>
+                <tr>
+                  <th>MPAN/MPRN</th>
+                  <th>Type</th>
+                  <th>Annual Usage (kWh)</th>
+                  <th>Current Supplier</th>
+                  <th>Contract End</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr t-foreach="o.line_ids" t-as="l">
+                  <td><t t-esc="l.mpan_mprn"/></td>
+                  <td><t t-esc="l.get_selection_display('meter_type') if l.meter_type else ''"/></td>
+                  <td class="text-right"><t t-esc="'%.0f' % (l.annual_usage_kwh or 0)"/></td>
+                  <td><t t-esc="l.current_supplier_id.name"/></td>
+                  <td><t t-esc="l.contract_end_date"/></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="ebr-card">
+            <div class="ebr-h2">Supplier Offers</div>
+            <t t-set="responses" t-value="o.env['supplier.price.response'].search([('request_id','=',o.id)])"/>
+            <table class="ebr-table">
+              <thead>
+                <tr>
+                  <th>Supplier</th>
+                  <th>Term (yrs)</th>
+                  <th>Unit Rate (p/kWh)</th>
+                  <th>Standing (£/day)</th>
+                  <th>Total Annual Cost</th>
+                  <th t-att-title="'Visible only to managers'">Unit Rate w/ Uplift (p/kWh)</th>
+                  <th t-att-title="'Visible only to managers'">Annual Cost w/ Uplift</th>
+                  <th>Best</th>
+                </tr>
+              </thead>
+              <tbody>
+                <t t-foreach="responses" t-as="r">
+                  <tr t-att-class="'best' if r.is_best_offer else ''">
+                    <td><t t-esc="r.partner_id.name"/></td>
+                    <td>
+                      <t t-if="r.line_ids"> <t t-esc="r.line_ids[0].contract_term_years"/> </t>
+                    </td>
+                    <td>
+                      <t t-if="r.line_ids"> <t t-esc="'%.4g' % (r.line_ids[0].unit_rate_p_per_kwh or 0)"/> </t>
+                    </td>
+                    <td>
+                      <t t-if="r.line_ids"> <t t-esc="'%.2f' % (r.line_ids[0].standing_charge_gbp_per_day or 0)"/> </t>
+                    </td>
+                    <td><t t-esc="o.env['ir.qweb.field.monetary'].value_to_html(r.total_annual_cost, {'display_currency': r.currency_id})"/></td>
+                    <td>
+                      <t t-if="r.line_ids and o.env.user.has_group('energy_broker_uk.group_energy_broker_manager')">
+                        <t t-esc="'%.4g' % (r.line_ids[0].unit_rate_with_uplift_p_per_kwh or (r.line_ids[0].unit_rate_p_per_kwh or 0))"/>
+                      </t>
+                    </td>
+                    <td>
+                      <t t-if="o.env.user.has_group('energy_broker_uk.group_energy_broker_manager')">
+                        <t t-esc="o.env['ir.qweb.field.monetary'].value_to_html((r.line_ids and r.line_ids[0].annual_cost_with_uplift) or r.total_annual_cost, {'display_currency': r.currency_id})"/>
+                      </t>
+                    </td>
+                    <td><t t-esc="'Yes' if r.is_best_offer else ''"/></td>
+                  </tr>
+                </t>
+              </tbody>
+            </table>
+            <t t-set="_disc" t-value="o.env['ir.config_parameter'].sudo().get_param('energy_broker_uk.comparison_disclaimer')"/>
+            <div class="ebr-foot">
+              <div>Notes: Rates provided are indicative and subject to supplier terms. Standing charges and non-commodity elements may vary by contract basis.</div>
+              <div t-if="_disc"><t t-raw="_disc"/></div>
+            </div>
+          </div>
+        </t>
+      </div>
+    </t>
+  </template>
+</odoo>
