@@ -1,4 +1,4 @@
-name: Odoo Sign Integration (Hardened v2)
+name: Odoo Sign Integration (Hardened v3 + Diagnostics)
 
 on:
   workflow_dispatch:
@@ -122,8 +122,9 @@ if 'sign' not in depends:
     depends.append('sign')
 man['depends'] = depends
 data = list(man.get('data', []))
-if 'data/sign_cron.xml' not in data:
-    data.append('data/sign_cron.xml')
+x = 'data/sign_cron.xml'
+if x not in data:
+    data.append(x)
 man['data'] = data
 mp.write_text(str(man))
 PY
@@ -153,6 +154,7 @@ PY
           DB=$(awk -F= '/^[[:space:]]*db_name[[:space:]]*=/{gsub(/[[:space:]]+/,"",$2);print $2}' "$CONF" | tr -d '\r')
           [ -n "$DB" ] || (echo "db_name not found"; exit 1)
           echo "db=$DB" >> "$GITHUB_OUTPUT"
+          echo "Using DB: $DB"
 
       - name: Upgrade module (loads XML + Python)
         env:
@@ -168,3 +170,19 @@ PY
           sudo systemctl start odoo19.service || systemctl start odoo19.service
           sleep 4
           tail -n 200 /opt/odoo19/log/logfile.txt || true
+
+      - name: Verification (models + cron)
+        shell: bash
+        run: |
+          set -e
+          echo "Verify files on server:" > verification.txt
+          ls -l /opt/custom-addons/energy_broker_uk/models >> verification.txt || true
+          ls -l /opt/custom-addons/energy_broker_uk/data >> verification.txt || true
+          echo "" >> verification.txt
+          echo "Note: To confirm in Odoo UI, check customer.contract has fields sign_template_id/sign_request_id/sign_status, and Scheduled Actions contains 'Contract Sign Status Sync'." >> verification.txt
+
+      - name: Upload verification artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification.txt
+          path: verification.txt
