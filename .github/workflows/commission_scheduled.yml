@@ -2,7 +2,7 @@ name: Commission Scheduled Deploy
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # every 30 minutes
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -16,13 +16,24 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: true
+          fetch-depth: 0
 
-      - name: Add commission compute (Python only) and wire imports
-        shell: bash
+      - name: Harden git auth (ensure push works)
+        run: |
+          set -e
+          git config user.name "CI Runner"
+          git config user.email "ci@runner"
+          git remote set-url origin https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+
+      - name: Ensure paths exist
         run: |
           set -e
           mkdir -p energy_broker_uk/models
 
+      - name: Write commission compute (Python-only) and wire imports
+        shell: bash
+        run: |
+          set -e
           cat > energy_broker_uk/models/commission_compute.py <<'PY'
 from odoo import models, fields
 
@@ -92,19 +103,49 @@ class CustomerContractCommission(models.Model):
             rec.first_payment_gbp = firstpay_amt
 PY
 
-          grep -q "^from \. import commission_compute$" energy_broker_uk/models/__init__.py || echo "from . import commission_compute" >> energy_broker_uk/models/__init__.py
+          # Ensure __init__.py exists and import is wired once
+          INIT=energy_broker_uk/models/__init__.py
+          [ -f "$INIT" ] || echo "# models init" > "$INIT"
+          grep -q "^from \. import commission_compute$" "$INIT" || echo "from . import commission_compute" >> "$INIT"
 
-          git config user.name "CI Runner"
-          git config user.email "ci@runner"
-          git add energy_broker_uk/models/commission_compute.py energy_broker_uk/models/__init__.py
-          git commit -m "feat(commission): compute fields + action in Python only (safe deploy)" || echo "nothing to commit"
-          git push
+          # Commit only if there are changes
+          if ! git diff --quiet -- energy_broker_uk/models/commission_compute.py "$INIT"; then
+            git add energy_broker_uk/models/commission_compute.py "$INIT"
+            git commit -m "feat(commission): compute fields + action (Python-only); hardened push and wiring"
+            git push
+          else
+            echo "No commission changes to commit"
+          fi
 
-      - name: Deploy to Odoo (pull + restart + tail logs)
-        shell: bash
+      - name: Deploy to Odoo (pull repo)
         run: |
           set -e
           git -C /opt/custom-addons/energy_broker_uk pull
-          sudo systemctl restart odoo19.service || systemctl restart odoo19.service
-          sleep 3
+
+      - name: Detect DB name
+        id: db
+        shell: bash
+        run: |
+          set -e
+          CONF=/etc/odoo19/odoo.conf
+          DB=$(awk -F= '/^[[:space:]]*db_name[[:space:]]*=/{gsub(/[[:space:]]+/,"",$2);print $2}' "$CONF" | tr -d '\r')
+          if [ -z "$DB" ]; then
+            echo "db_name not found in $CONF"; exit 1
+          fi
+          echo "db=$DB" >> "$GITHUB_OUTPUT"
+          echo "Using DB: $DB"
+
+      - name: Upgrade energy_broker_uk module
+        env:
+          DB_NAME: ${{ steps.db.outputs.db }}
+        shell: bash
+        run: |
+          set -e
+          sudo systemctl stop odoo19.service || true
+          sleep 2
+          if [ -x /opt/odoo19/venv/bin/python ]; then PY=/opt/odoo19/venv/bin/python; else PY=python3; fi
+          if [ -f /opt/odoo19/odoo/odoo-bin ]; then ODOO_BIN=/opt/odoo19/odoo/odoo-bin; else ODOO_BIN=odoo-bin; fi
+          $PY $ODOO_BIN -c /etc/odoo19/odoo.conf -d "$DB_NAME" -u energy_broker_uk --stop-after-init
+          sudo systemctl start odoo19.service || systemctl start odoo19.service
+          sleep 4
           tail -n 200 /opt/odoo19/log/logfile.txt || true
