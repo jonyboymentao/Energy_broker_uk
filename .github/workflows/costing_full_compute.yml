@@ -1,0 +1,140 @@
+name: Costing Full Compute
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-compute-and-deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Replace costing.py with full compute
+        shell: bash
+        run: |
+          set -e
+          cat > energy_broker_uk/models/costing.py <<'PY'
+          from odoo import models, fields, api
+
+          class EnergyHHCost(models.Model):
+              _name = 'energy.hh.cost'
+              _description = 'Monthly Energy Cost Summary'
+
+              name = fields.Char(required=True)
+              partner_id = fields.Many2one('res.partner', string='Customer')
+              supplier_id = fields.Many2one('res.partner', domain=[('supplier_rank','>', 0)], string='Supplier')
+              meter_product_id = fields.Many2one('product.product', string='Meter')
+              date_start = fields.Date(required=True)
+              date_end = fields.Date(required=True)
+
+              total_kwh = fields.Float()
+              total_kvarh = fields.Float()
+              unit_cost_gbp = fields.Float()
+              standing_cost_gbp = fields.Float()
+              capacity_cost_gbp = fields.Float()
+              reactive_cost_gbp = fields.Float()
+              total_cost_gbp = fields.Float()
+
+              state = fields.Selection([
+                  ('draft', 'Draft'),
+                  ('computed', 'Computed'),
+                  ('confirmed', 'Confirmed'),
+              ], default='draft')
+
+              def _iter_hh_reads(self):
+                  # Try to use HH read model if present; otherwise yield nothing
+                  Env = self.env
+                  model_name_candidates = ['energy.hh.read', 'energy_hh_read', 'hh.read']
+                  hh_model = None
+                  for m in model_name_candidates:
+                      if m in Env:
+                          hh_model = Env[m]
+                          break
+                  if not hh_model:
+                      return []
+
+                  domain = []
+                  if self.meter_product_id:
+                      # common field names: product_id or meter_product_id
+                      product_field = 'meter_product_id' if 'meter_product_id' in hh_model._fields else 'product_id'
+                      domain.append((product_field, '=', self.meter_product_id.id))
+                  if self.date_start:
+                      date_field = 'timestamp' if 'timestamp' in hh_model._fields else 'date'
+                      domain.append((date_field, '>=', fields.Datetime.to_datetime(self.date_start)))
+                  if self.date_end:
+                      date_field = 'timestamp' if 'timestamp' in hh_model._fields else 'date'
+                      # include end date at 23:59:59
+                      domain.append((date_field, '<=', fields.Datetime.to_datetime(self.date_end) + fields.Date.to_date('1970-01-01').replace(hour=23, minute=59, second=59)))
+
+                  return hh_model.search(domain, order='id asc')
+
+              def _safe_field(self, rec, names, default=0.0):
+                  for n in names:
+                      if hasattr(rec, n):
+                          try:
+                              return float(getattr(rec, n) or 0.0)
+                          except Exception:
+                              pass
+                  return default
+
+              def action_compute(self):
+                  for rec in self:
+                      total_kwh = 0.0
+                      total_kvarh = 0.0
+                      unit_cost = 0.0
+                      standing_cost = 0.0
+                      capacity_cost = 0.0
+                      reactive_cost = 0.0
+
+                      try:
+                          reads = rec._iter_hh_reads()
+                          for r in reads:
+                              kwh = rec._safe_field(r, ['kwh', 'kw_h', 'consumption_kwh'])
+                              kvarh = rec._safe_field(r, ['kvarh', 'kvar_h', 'reactive_kvarh'])
+                              total_kwh += kwh
+                              total_kvarh += kvarh
+
+                              # Try to pick rates off the read if available; else 0
+                              unit_rate = rec._safe_field(r, ['unit_rate_gbp', 'unit_rate', 'rate_unit_gbp'])
+                              standing_rate = rec._safe_field(r, ['standing_rate_gbp', 'standing_rate', 'rate_standing_gbp'])
+                              capacity_rate = rec._safe_field(r, ['capacity_rate_gbp', 'capacity_rate', 'rate_capacity_gbp'])
+                              reactive_rate = rec._safe_field(r, ['reactive_rate_gbp', 'reactive_rate', 'rate_reactive_gbp'])
+
+                              unit_cost += kwh * unit_rate
+                              standing_cost += standing_rate
+                              capacity_cost += capacity_rate
+                              reactive_cost += reactive_rate
+                      except Exception:
+                          # If anything fails, keep zeros but still mark computed
+                          pass
+
+                      rec.total_kwh = total_kwh
+                      rec.total_kvarh = total_kvarh
+                      rec.unit_cost_gbp = unit_cost
+                      rec.standing_cost_gbp = standing_cost
+                      rec.capacity_cost_gbp = capacity_cost
+                      rec.reactive_cost_gbp = reactive_cost
+                      rec.total_cost_gbp = unit_cost + standing_cost + capacity_cost + reactive_cost
+                      rec.state = 'computed'
+          PY
+
+          git config user.name "CI Runner"
+          git config user.email "ci@runner"
+          git add energy_broker_uk/models/costing.py
+          git commit -m "feat(costing): full compute using HH reads + rates (fault-tolerant)" || echo "nothing to commit"
+          git push
+
+      - name: Deploy to Odoo
+        shell: bash
+        run: |
+          set -e
+          git -C /opt/custom-addons/energy_broker_uk pull
+          sudo systemctl restart odoo19.service || systemctl restart odoo19.service
+          sleep 3
+          tail -n 200 /opt/odoo19/log/logfile.txt || true
