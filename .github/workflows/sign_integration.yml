@@ -1,4 +1,4 @@
-name: Odoo Sign Integration
+name: Odoo Sign Integration (Hardened)
 
 on:
   workflow_dispatch:
@@ -12,27 +12,32 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
 
-      - name: Implement Odoo Sign workflow
+      - name: Harden git auth
+        run: |
+          set -e
+          git config user.name "CI Runner"
+          git config user.email "ci@runner"
+          git remote set-url origin https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+
+      - name: Ensure dirs
+        run: |
+          set -e
+          mkdir -p energy_broker_uk/models
+          mkdir -p energy_broker_uk/data
+
+      - name: Write sign model extension (fields + send + cron sync)
         shell: bash
         run: |
           set -e
-          # Add fields and actions into contract extension
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('energy_broker_uk/models/contract_ext.py')
-          src = p.read_text()
-          if 'sign_template_id' not in src:
-              # Add sign fields near other fields
-              src = src.replace(
-                  'class CustomerContract',
-                  "class CustomerContract"
-              )
-              insert_after = 'class CustomerContract'
-              idx = src.find(insert_after)
-              # naive insert: add fields and status at the start of class body
-              start = src.find(':', idx) + 1
-              addition = """
+          cat > energy_broker_uk/models/sign_contract.py <<'PY'
+from odoo import models, fields, api
+
+class CustomerContractSign(models.Model):
+    _inherit = 'customer.contract'
 
     sign_template_id = fields.Many2one('sign.template', string='Signature Template')
     sign_request_id = fields.Many2one('sign.request', string='Signature Request', readonly=True)
@@ -42,11 +47,6 @@ jobs:
         ('signed','Signed'),
         ('cancelled','Cancelled'),
     ], default='draft', string='Signature Status', tracking=True)
-"""
-              src = src[:start] + addition + src[start:]
-
-          if 'def action_send_for_signature' not in src:
-              src += """
 
     def action_send_for_signature(self):
         SignRequest = self.env['sign.request']
@@ -57,11 +57,9 @@ jobs:
             req = SignRequest.create({
                 'template_id': tmpl.id,
                 'subject': rec.name or 'Contract Signature',
-                'request_item_ids': [],
             })
             rec.sign_request_id = req.id
             rec.sign_status = 'sent'
-            # Try to open the request (if UI flow triggers it)
             return {
                 'type': 'ir.actions.act_window',
                 'name': 'Signature Request',
@@ -70,60 +68,106 @@ jobs:
                 'res_id': req.id,
                 'target': 'current',
             }
-"""
-          p.write_text(src)
-          PY
 
-          # Add cron + PDF attach hook (new file)
-          cat > energy_broker_uk/models/sign_sync.py <<'PY'
-from odoo import models, fields, api
-from datetime import datetime, timedelta
-
-class CustomerContractSignSync(models.Model):
-    _inherit = 'customer.contract'
-
-    def _sync_signature_status(self):
-        for rec in self.search([('sign_request_id','!=',False)]):
+    @api.model
+    def _cron_sync_signature_status(self):
+        recs = self.search([('sign_request_id','!=',False)])
+        for rec in recs:
             req = rec.sign_request_id
-            status = 'sent'
-            if req and getattr(req, 'state', '') in ('completed','signed'):
-                status = 'signed'
-                # attach latest PDF if present
-                if hasattr(req, 'completed_document'):
-                    pdf = req.completed_document
-                    if pdf:
-                        rec.message_post(body='Signed PDF attached via sync', attachments=[('signed_contract.pdf', pdf)])
-            elif req and getattr(req, 'state', '') in ('cancel', 'cancelled'):
-                status = 'cancelled'
-            rec.sign_status = status
+            new_status = rec.sign_status or 'draft'
+            state = getattr(req, 'state', False) or getattr(req, 'status', False)
+            if state in ('completed','signed'):
+                new_status = 'signed'
+                pdf = getattr(req, 'completed_document', False)
+                if pdf:
+                    rec.message_post(body='Signed PDF attached via sync',
+                                     attachments=[('signed_contract.pdf', pdf)])
+            elif state in ('cancel','cancelled'):
+                new_status = 'cancelled'
+            elif state in ('sent','requested'):
+                new_status = 'sent'
+            rec.sign_status = new_status
 PY
 
-          # Wire imports in models/__init__.py
-          grep -q '^from \. import sign_sync$' energy_broker_uk/models/__init__.py || echo 'from . import sign_sync' >> energy_broker_uk/models/__init__.py
+          INIT=energy_broker_uk/models/__init__.py
+          [ -f "$INIT" ] || echo "# models init" > "$INIT"
+          grep -q "^from \. import sign_contract$" "$INIT" || echo "from . import sign_contract" >> "$INIT"
 
-          # Add cron in data if a data file exists; else ensure manifest loads python only
-          python3 - <<'PY'
-          import ast, pathlib
-          man_p = pathlib.Path('energy_broker_uk/__manifest__.py')
-          man = ast.literal_eval(man_p.read_text())
-          data = man.get('data', [])
-          # If you later add an XML cron, append its path; for now we keep python-only sync callable
-          man['data'] = data
-          man_p.write_text(str(man))
-          PY
-
-          # Commit changes
-          git config user.name "CI Runner"
-          git config user.email "ci@runner"
-          git add energy_broker_uk/models/contract_ext.py energy_broker_uk/models/sign_sync.py energy_broker_uk/models/__init__.py energy_broker_uk/__manifest__.py || true
-          git commit -m "feat(sign): add sign fields, action_send_for_signature, and sync hook" || echo "nothing to commit"
-          git push
-
-      - name: Deploy to Odoo
+      - name: Add cron XML and ensure sign dependency in manifest
         shell: bash
         run: |
           set -e
+          cat > energy_broker_uk/data/sign_cron.xml <<'XML'
+<odoo>
+  <data noupdate="1">
+    <record id="ir_cron_contract_sign_sync" model="ir.cron">
+      <field name="name">Contract Sign Status Sync</field>
+      <field name="model_id" ref="model_customer_contract"/>
+      <field name="state">code</field>
+      <field name="code">model._cron_sync_signature_status()</field>
+      <field name="interval_number">1</field>
+      <field name="interval_type">days</field>
+      <field name="numbercall">-1</field>
+      <field name="active">True</field>
+    </record>
+  </data>
+</odoo>
+XML
+
+          python3 - <<'PY'
+import ast, pathlib
+mp = pathlib.Path('energy_broker_uk/__manifest__.py')
+man = ast.literal_eval(mp.read_text())
+depends = list(man.get('depends', []))
+if 'sign' not in depends:
+    depends.append('sign')
+man['depends'] = depends
+data = list(man.get('data', []))
+if 'data/sign_cron.xml' not in data:
+    data.append('data/sign_cron.xml')
+man['data'] = data
+mp.write_text(str(man))
+PY
+
+      - name: Commit changes (only if modified)
+        shell: bash
+        run: |
+          set -e
+          git add energy_broker_uk/models/sign_contract.py energy_broker_uk/models/__init__.py energy_broker_uk/data/sign_cron.xml energy_broker_uk/__manifest__.py
+          if ! git diff --cached --quiet; then
+            git commit -m "feat(sign): fields, send action, cron sync; add sign dependency"
+            git push
+          else
+            echo "No sign changes to commit"
+          fi
+
+      - name: Pull on server
+        run: |
+          set -e
           git -C /opt/custom-addons/energy_broker_uk pull
-          sudo systemctl restart odoo19.service || systemctl restart odoo19.service
-          sleep 3
+
+      - name: Detect DB name
+        id: db
+        shell: bash
+        run: |
+          set -e
+          CONF=/etc/odoo19/odoo.conf
+          DB=$(awk -F= '/^[[:space:]]*db_name[[:space:]]*=/{gsub(/[[:space:]]+/,"",$2);print $2}' "$CONF" | tr -d '\r')
+          [ -n "$DB" ] || (echo "db_name not found"; exit 1)
+          echo "db=$DB" >> "$GITHUB_OUTPUT"
+          echo "Using DB: $DB"
+
+      - name: Upgrade module (loads XML + Python)
+        env:
+          DB_NAME: ${{ steps.db.outputs.db }}
+        shell: bash
+        run: |
+          set -e
+          sudo systemctl stop odoo19.service || true
+          sleep 2
+          if [ -x /opt/odoo19/venv/bin/python ]; then PY=/opt/odoo19/venv/bin/python; else PY=python3; fi
+          if [ -f /opt/odoo19/odoo/odoo-bin ]; then ODOO_BIN=/opt/odoo19/odoo/odoo-bin; else ODOO_BIN=odoo-bin; fi
+          $PY $ODOO_BIN -c /etc/odoo19/odoo.conf -d "$DB_NAME" -u energy_broker_uk --stop-after-init
+          sudo systemctl start odoo19.service || systemctl start odoo19.service
+          sleep 4
           tail -n 200 /opt/odoo19/log/logfile.txt || true
