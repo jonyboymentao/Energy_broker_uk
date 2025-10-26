@@ -1,0 +1,129 @@
+name: Odoo Sign Integration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sign-implement-and-deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Implement Odoo Sign workflow
+        shell: bash
+        run: |
+          set -e
+          # Add fields and actions into contract extension
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('energy_broker_uk/models/contract_ext.py')
+          src = p.read_text()
+          if 'sign_template_id' not in src:
+              # Add sign fields near other fields
+              src = src.replace(
+                  'class CustomerContract',
+                  "class CustomerContract"
+              )
+              insert_after = 'class CustomerContract'
+              idx = src.find(insert_after)
+              # naive insert: add fields and status at the start of class body
+              start = src.find(':', idx) + 1
+              addition = """
+
+    sign_template_id = fields.Many2one('sign.template', string='Signature Template')
+    sign_request_id = fields.Many2one('sign.request', string='Signature Request', readonly=True)
+    sign_status = fields.Selection([
+        ('draft','Draft'),
+        ('sent','Sent'),
+        ('signed','Signed'),
+        ('cancelled','Cancelled'),
+    ], default='draft', string='Signature Status', tracking=True)
+"""
+              src = src[:start] + addition + src[start:]
+
+          if 'def action_send_for_signature' not in src:
+              src += """
+
+    def action_send_for_signature(self):
+        SignRequest = self.env['sign.request']
+        for rec in self:
+            tmpl = rec.sign_template_id
+            if not tmpl:
+                continue
+            req = SignRequest.create({
+                'template_id': tmpl.id,
+                'subject': rec.name or 'Contract Signature',
+                'request_item_ids': [],
+            })
+            rec.sign_request_id = req.id
+            rec.sign_status = 'sent'
+            # Try to open the request (if UI flow triggers it)
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'Signature Request',
+                'res_model': 'sign.request',
+                'view_mode': 'form',
+                'res_id': req.id,
+                'target': 'current',
+            }
+"""
+          p.write_text(src)
+          PY
+
+          # Add cron + PDF attach hook (new file)
+          cat > energy_broker_uk/models/sign_sync.py <<'PY'
+from odoo import models, fields, api
+from datetime import datetime, timedelta
+
+class CustomerContractSignSync(models.Model):
+    _inherit = 'customer.contract'
+
+    def _sync_signature_status(self):
+        for rec in self.search([('sign_request_id','!=',False)]):
+            req = rec.sign_request_id
+            status = 'sent'
+            if req and getattr(req, 'state', '') in ('completed','signed'):
+                status = 'signed'
+                # attach latest PDF if present
+                if hasattr(req, 'completed_document'):
+                    pdf = req.completed_document
+                    if pdf:
+                        rec.message_post(body='Signed PDF attached via sync', attachments=[('signed_contract.pdf', pdf)])
+            elif req and getattr(req, 'state', '') in ('cancel', 'cancelled'):
+                status = 'cancelled'
+            rec.sign_status = status
+PY
+
+          # Wire imports in models/__init__.py
+          grep -q '^from \. import sign_sync$' energy_broker_uk/models/__init__.py || echo 'from . import sign_sync' >> energy_broker_uk/models/__init__.py
+
+          # Add cron in data if a data file exists; else ensure manifest loads python only
+          python3 - <<'PY'
+          import ast, pathlib
+          man_p = pathlib.Path('energy_broker_uk/__manifest__.py')
+          man = ast.literal_eval(man_p.read_text())
+          data = man.get('data', [])
+          # If you later add an XML cron, append its path; for now we keep python-only sync callable
+          man['data'] = data
+          man_p.write_text(str(man))
+          PY
+
+          # Commit changes
+          git config user.name "CI Runner"
+          git config user.email "ci@runner"
+          git add energy_broker_uk/models/contract_ext.py energy_broker_uk/models/sign_sync.py energy_broker_uk/models/__init__.py energy_broker_uk/__manifest__.py || true
+          git commit -m "feat(sign): add sign fields, action_send_for_signature, and sync hook" || echo "nothing to commit"
+          git push
+
+      - name: Deploy to Odoo
+        shell: bash
+        run: |
+          set -e
+          git -C /opt/custom-addons/energy_broker_uk pull
+          sudo systemctl restart odoo19.service || systemctl restart odoo19.service
+          sleep 3
+          tail -n 200 /opt/odoo19/log/logfile.txt || true
