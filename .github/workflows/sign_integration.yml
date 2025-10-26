@@ -1,4 +1,4 @@
-name: Odoo Sign Integration (Hardened)
+name: Odoo Sign Integration (Hardened v2)
 
 on:
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
           mkdir -p energy_broker_uk/models
           mkdir -p energy_broker_uk/data
 
-      - name: Write sign model extension (fields + send + cron sync)
+      - name: Write sign model extension (fields + send + sync)
         shell: bash
         run: |
           set -e
@@ -51,11 +51,10 @@ class CustomerContractSign(models.Model):
     def action_send_for_signature(self):
         SignRequest = self.env['sign.request']
         for rec in self:
-            tmpl = rec.sign_template_id
-            if not tmpl:
+            if not rec.sign_template_id:
                 continue
             req = SignRequest.create({
-                'template_id': tmpl.id,
+                'template_id': rec.sign_template_id.id,
                 'subject': rec.name or 'Contract Signature',
             })
             rec.sign_request_id = req.id
@@ -74,11 +73,11 @@ class CustomerContractSign(models.Model):
         recs = self.search([('sign_request_id','!=',False)])
         for rec in recs:
             req = rec.sign_request_id
-            new_status = rec.sign_status or 'draft'
             state = getattr(req, 'state', False) or getattr(req, 'status', False)
+            new_status = rec.sign_status or 'draft'
             if state in ('completed','signed'):
                 new_status = 'signed'
-                pdf = getattr(req, 'completed_document', False)
+                pdf = getattr(req, 'completed_document', False) or getattr(req, 'completed_document_pdf', False)
                 if pdf:
                     rec.message_post(body='Signed PDF attached via sync',
                                      attachments=[('signed_contract.pdf', pdf)])
@@ -93,7 +92,7 @@ PY
           [ -f "$INIT" ] || echo "# models init" > "$INIT"
           grep -q "^from \. import sign_contract$" "$INIT" || echo "from . import sign_contract" >> "$INIT"
 
-      - name: Add cron XML and ensure sign dependency in manifest
+      - name: Add cron XML and ensure sign dependency
         shell: bash
         run: |
           set -e
@@ -102,7 +101,7 @@ PY
   <data noupdate="1">
     <record id="ir_cron_contract_sign_sync" model="ir.cron">
       <field name="name">Contract Sign Status Sync</field>
-      <field name="model_id" ref="model_customer_contract"/>
+      <field name="model_name">customer.contract</field>
       <field name="state">code</field>
       <field name="code">model._cron_sync_signature_status()</field>
       <field name="interval_number">1</field>
@@ -135,11 +134,10 @@ PY
           set -e
           git add energy_broker_uk/models/sign_contract.py energy_broker_uk/models/__init__.py energy_broker_uk/data/sign_cron.xml energy_broker_uk/__manifest__.py
           if ! git diff --cached --quiet; then
-            git commit -m "feat(sign): fields, send action, cron sync; add sign dependency"
+            git commit -m "feat(sign): fields, send action, cron sync via model_name; add sign dependency"
             git push
           else
             echo "No sign changes to commit"
-          fi
 
       - name: Pull on server
         run: |
@@ -155,7 +153,6 @@ PY
           DB=$(awk -F= '/^[[:space:]]*db_name[[:space:]]*=/{gsub(/[[:space:]]+/,"",$2);print $2}' "$CONF" | tr -d '\r')
           [ -n "$DB" ] || (echo "db_name not found"; exit 1)
           echo "db=$DB" >> "$GITHUB_OUTPUT"
-          echo "Using DB: $DB"
 
       - name: Upgrade module (loads XML + Python)
         env:
