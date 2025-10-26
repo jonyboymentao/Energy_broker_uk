@@ -2,7 +2,7 @@ name: Commission Scheduled Deploy
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # every 15 minutes
+    - cron: "*/30 * * * *"   # every 30 minutes
   workflow_dispatch:
 
 permissions:
@@ -17,14 +17,14 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Add commission compute + UI button and wire imports/manifest
+      - name: Add commission compute (Python only) and wire imports
         shell: bash
         run: |
           set -e
+          mkdir -p energy_broker_uk/models
 
-          # 1) Commission compute extension
           cat > energy_broker_uk/models/commission_compute.py <<'PY'
-from odoo import models, fields, api
+from odoo import models, fields
 
 class CustomerContractCommission(models.Model):
     _inherit = 'customer.contract'
@@ -92,51 +92,12 @@ class CustomerContractCommission(models.Model):
             rec.first_payment_gbp = firstpay_amt
 PY
 
-          # 2) Wire import
           grep -q "^from \. import commission_compute$" energy_broker_uk/models/__init__.py || echo "from . import commission_compute" >> energy_broker_uk/models/__init__.py
 
-          # 3) Add a form button to trigger action_compute_commission (new view file)
-          mkdir -p energy_broker_uk/views
-          cat > energy_broker_uk/views/contract_commission_button.xml <<'XML'
-<odoo>
-  <data>
-    <record id="view_customer_contract_form_commission_button" model="ir.ui.view">
-      <field name="name">customer.contract.form.commission.button</field>
-      <field name="model">customer.contract</field>
-      <field name="inherit_id" ref="base.view_partner_form"/>
-      <field name="arch" type="xml">
-        <!-- WARNING: If your contract form view has a different XML-ID, replace inherit_id accordingly.
-             This is a safe placeholder to ensure the module stays installable. -->
-        <form position="attributes">
-          <attribute name="string">Customer Contract</attribute>
-        </form>
-        <header position="inside">
-          <button name="action_compute_commission" type="object" string="Compute Commission" class="btn-primary" />
-        </header>
-      </field>
-    </record>
-  </data>
-</odoo>
-XML
-
-          # 4) Ensure manifest loads the view
-          python3 - <<'PY'
-          import ast, pathlib
-          mp = pathlib.Path('energy_broker_uk/__manifest__.py')
-          man = ast.literal_eval(mp.read_text())
-          data = list(man.get('data', []))
-          x = 'views/contract_commission_button.xml'
-          if x not in data:
-              data.append(x)
-          man['data'] = data
-          mp.write_text(str(man))
-          PY
-
-          # 5) Commit changes
           git config user.name "CI Runner"
           git config user.email "ci@runner"
-          git add energy_broker_uk/models/commission_compute.py energy_broker_uk/models/__init__.py energy_broker_uk/views/contract_commission_button.xml energy_broker_uk/__manifest__.py
-          git commit -m "feat(commission): compute fields + UI button; scheduled auto-deploy" || echo "nothing to commit"
+          git add energy_broker_uk/models/commission_compute.py energy_broker_uk/models/__init__.py
+          git commit -m "feat(commission): compute fields + action in Python only (safe deploy)" || echo "nothing to commit"
           git push
 
       - name: Deploy to Odoo (pull + restart + tail logs)
