@@ -18,13 +18,8 @@ jobs:
       - name: Stop Odoo
         run: sudo systemctl stop odoo19.service
 
-      - name: Upgrade module (as odoo19)
-        run: |
-          sudo -u odoo19 /opt/odoo19env/bin/python3 /opt/odoo19/odoo-bin \
-            -c /opt/odoo19/odoo19.conf \
-            -d dominicanparadeuk \
-            -u energy_broker_uk \
-            --stop-after-init
+      - name: Upgrade module
+        run: sudo /usr/local/sbin/odoo-upgrade-energy
 
       - name: Start Odoo
         run: sudo systemctl start odoo19.service
