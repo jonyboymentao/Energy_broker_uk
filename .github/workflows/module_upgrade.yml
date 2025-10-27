@@ -1,56 +1,11 @@
-name: Odoo Module Auto-Upgrade
+name: DISABLED (temporarily)
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/30 * * * *"  # every 30 minutes
-
-permissions:
-  contents: read
 
 jobs:
-  upgrade-and-verify:
-    runs-on: self-hosted
+  disabled:
+    if: ${{ false }}
+    runs-on: [self-hosted, odoo]
     steps:
-      - name: Stop Odoo service
-        run: |
-          sudo systemctl stop odoo19.service || true
-          sleep 2
-
-      - name: Parse db_name from odoo.conf
-        id: db
-        shell: bash
-        run: |
-          set -e
-          CONF=/etc/odoo19/odoo.conf
-          DB=$(awk -F= '/^[[:space:]]*db_name[[:space:]]*=/{gsub(/[[:space:]]+/,"",$2);print $2}' "$CONF" | tr -d '\r')
-          if [ -z "$DB" ]; then
-            echo "db_name not found in $CONF"; exit 1
-          fi
-          echo "db_name=$DB"
-          echo "db=$DB" >> "$GITHUB_OUTPUT"
-
-      - name: Run -u energy_broker_uk --stop-after-init
-        env:
-          DB_NAME: ${{ steps.db.outputs.db }}
-        run: |
-          set -e
-          # Adjust odoo-bin path if different in your server
-          if [ -x /opt/odoo19/venv/bin/python ]; then PY=/opt/odoo19/venv/bin/python; else PY=python3; fi
-          if [ -f /opt/odoo19/odoo/odoo-bin ]; then ODOO_BIN=/opt/odoo19/odoo/odoo-bin; else ODOO_BIN=odoo-bin; fi
-          $PY $ODOO_BIN -c /etc/odoo19/odoo.conf -d "$DB_NAME" -u energy_broker_uk --stop-after-init
-
-      - name: Start Odoo service
-        run: |
-          sudo systemctl start odoo19.service || systemctl start odoo19.service
-          sleep 4
-
-      - name: Tail Odoo log
-        run: |
-          tail -n 200 /opt/odoo19/log/logfile.txt || true
-
-      - name: Verify files present (repo on server)
-        run: |
-          set -e
-          ls -l /opt/custom-addons/energy_broker_uk/models || true
-          ls -l /opt/custom-addons/energy_broker_uk/views || true
+      - run: echo "Temporarily disabled while stabilizing odoo-upgrade.yml"
