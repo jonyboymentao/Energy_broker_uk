@@ -11,6 +11,13 @@ jobs:
   upgrade-and-verify:
     runs-on: [self-hosted, odoo]
 
+    env:
+      ODOO_BIN: /opt/odoo19/odoo-bin
+      ODOO_PY: /opt/odoo19env/bin/python3
+      ODOO_CONF: /opt/odoo19/odoo19.conf
+      DB_NAME: dominicanparadeuk
+      LOG_FILE: /opt/odoo19/log/logfile.txt
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,9 +25,9 @@ jobs:
       - name: Show runner and Odoo paths
         run: |
           whoami
-          ls -l /opt/odoo19/odoo-bin || true
-          ls -l /opt/odoo19env/bin/python3 || true
-          ls -l /opt/odoo19/odoo19.conf || true
+          ls -l "$ODOO_BIN" || true
+          ls -l "$ODOO_PY" || true
+          ls -l "$ODOO_CONF" || true
 
       - name: Stop Odoo
         run: sudo systemctl stop odoo19.service
@@ -33,16 +40,16 @@ jobs:
 
       - name: Tail Odoo log (last 200)
         run: |
-          if [ -f /opt/odoo19/log/logfile.txt ]; then
-            tail -n 200 /opt/odoo19/log/logfile.txt
+          if [ -f "$LOG_FILE" ]; then
+            tail -n 200 "$LOG_FILE"
           else
             sudo journalctl -u odoo19.service -n 200 --no-pager || true
           fi
 
       - name: Verify (no critical errors in last 200 lines)
         run: |
-          if [ -f /opt/odoo19/log/logfile.txt ]; then
-            tail -n 200 /opt/odoo19/log/logfile.txt | grep -E "CRITICAL|Traceback|ERROR" -n && exit 1 || echo "OK"
+          if [ -f "$LOG_FILE" ]; then
+            tail -n 200 "$LOG_FILE" | grep -E "CRITICAL|Traceback|ERROR" -n && exit 1 || echo "OK"
           else
             sudo journalctl -u odoo19.service -n 200 --no-pager | grep -E "CRITICAL|Traceback|ERROR" -n && exit 1 || echo "OK"
           fi
